@@ -24,7 +24,6 @@ socket.on('connection', (client) => {
   
   client.on('firebase-create', (data) => {
     console.log("Connected Users", data);
-    socket.emit('')
   })
 })
 
@@ -41,3 +40,8 @@ app.get("/", (req, res) => {
 app.use('/firebase', firebase_routes);
 
 app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
+
+
+module.exports = {
+  socket,
+}
