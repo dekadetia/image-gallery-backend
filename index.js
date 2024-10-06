@@ -27,9 +27,9 @@ socket.on('connection', (client) => {
   })
 })
 
-server.listen(3002, () =>
-  console.log(`Socket running on port: 3002`)
-)
+// server.listen(3002, () =>
+//   console.log(`Socket running on port: 3002`)
+// )
 
 const PORT = process.env.PORT || 8000;
 

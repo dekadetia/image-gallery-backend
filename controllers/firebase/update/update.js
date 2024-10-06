@@ -23,7 +23,7 @@ const UpdateImage = async (request, response) => {
 
         const data = {
             src: downloadURL,
-            name: filename,
+            name: file,
             created_at: metadata_uploaded.timeCreated,
             updated_at: metadata_uploaded.updated,
             size: metadata_uploaded.size,
@@ -37,7 +37,7 @@ const UpdateImage = async (request, response) => {
         }
 
         // Send success response once all files are uploaded
-        return response.status(200).json({ message: 'All files uploaded successfully' });
+        return response.status(200).json({ message: 'File updated successfully' });
     } catch (error) {
         console.error('Error uploading files:', error);
         return response.status(500).json({ error: 'File upload failed', details: error.message });

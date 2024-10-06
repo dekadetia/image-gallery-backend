@@ -52,14 +52,13 @@ const StoreImage = async (request, response) => {
                         dimensions: dimensions,
                     }
 
-                    socket.emit('store_image', file_info);
+                    // socket.emit('store_image', file_info);
                 })()
             );
         });
 
         // Wait for all the files to be uploaded
         await Promise.all(uploadPromises);
-
 
         // Send success response once all files are uploaded
         return response.status(200).json({ message: 'All files uploaded successfully' });
