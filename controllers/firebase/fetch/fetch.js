@@ -162,10 +162,11 @@ const GET_RANDOM_IMAGES = async (request, response) => {
 };
 
 const GET_ALL_IMAGES = async (request, response) => {
-  const listRef = ref(firebase_app_storage, "images");
-
+  
   try {
-    const res = await list(listRef, { maxResults: 20 });
+    const listRef = ref(firebase_app_storage, "images");
+    const { pageToken } = request.body;
+    const res = await list(listRef, { maxResults: 300, pageToken: pageToken });
 
     const imagesWithData = await Promise.all(
       res.items.map(async (itemRef) => {
@@ -192,6 +193,7 @@ const GET_ALL_IMAGES = async (request, response) => {
 
     return response.status(200).json({
       images: sortedImages,
+      nextPageToken: res.nextPageToken || null,
       message: "Successfully fetched all images",
     });
   } catch (error) {
