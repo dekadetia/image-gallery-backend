@@ -8,10 +8,61 @@ const {
 const { firebase_app_storage } = require("../../../firebase/index");
 
 const GET_ALL_IMAGES_A_Z = async (request, response) => {
-  const listRef = ref(firebase_app_storage, "images");
 
   try {
-    const res = await listAll(listRef);
+    const listRef = ref(firebase_app_storage, "images");
+    const { pageToken } = request.body;
+    const res = await list(listRef, { maxResults: 300, pageToken: pageToken });
+
+    const imagesWithData = await Promise.all(
+      res.items.map(async (itemRef) => {
+        const metadata = await getMetadata(itemRef);
+
+        return {
+          name: itemRef.name,
+          created_at: metadata.timeCreated,
+          updated_at: metadata.updated,
+          size: metadata.size,
+          caption: metadata.customMetadata?.caption || "",
+          director: metadata.customMetadata?.director || "",
+          photographer: metadata.customMetadata?.photographer || "",
+          year: metadata.customMetadata?.year || "",
+          alphaname: metadata.customMetadata?.alphaname || "",
+          contentType: metadata.contentType,
+          dimensions: metadata.customMetadata?.dimensions || "",
+        };
+      })
+    );
+
+    // Sort images by `alphaname`, but handle the case where `alphaname` might be missing
+    imagesWithData.sort((a, b) => {
+      const nameA = a.alphaname ? a.alphaname.toLowerCase() : "";
+      const nameB = b.alphaname ? b.alphaname.toLowerCase() : "";
+      return nameA.localeCompare(nameB);
+    });
+
+    return response.status(200).json({
+      images: imagesWithData,
+      nextPageToken: res.nextPageToken || null,
+      message: "Successfully fetched all images",
+    });
+  } catch (error) {
+    console.error("Error loading all images:", error);
+
+    // Return error with status code 400 and a descriptive error message
+    return response.status(400).json({
+      error: "Error fetching all images",
+      details: error.message,
+    });
+  }
+};
+
+const GET_ORDERED_IMAGES = async (request, response) => {
+
+  try {
+    const listRef = ref(firebase_app_storage, "images");
+    const { pageToken } = request.body;
+    const res = await list(listRef, { maxResults: 300, pageToken: pageToken });
 
     const imagesWithData = await Promise.all(
       res.items.map(async (itemRef) => {
@@ -44,6 +95,7 @@ const GET_ALL_IMAGES_A_Z = async (request, response) => {
 
     return response.status(200).json({
       images: imagesWithData,
+      nextPageToken: res.nextPageToken || null,
       message: "Successfully fetched all images",
     });
   } catch (error) {
@@ -58,10 +110,11 @@ const GET_ALL_IMAGES_A_Z = async (request, response) => {
 };
 
 const GET_RANDOM_IMAGES = async (request, response) => {
-  const listRef = ref(firebase_app_storage, "images");
 
   try {
-    const res = await listAll(listRef);
+    const listRef = ref(firebase_app_storage, "images");
+    const { pageToken } = request.body;
+    const res = await list(listRef, { maxResults: 300, pageToken: pageToken });
 
     const imagesWithData = await Promise.all(
       res.items.map(async (itemRef) => {
@@ -85,7 +138,6 @@ const GET_RANDOM_IMAGES = async (request, response) => {
       })
     );
 
-    // Function to shuffle the images array
     const shuffleArray = (array) => {
       for (let i = array.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -95,9 +147,9 @@ const GET_RANDOM_IMAGES = async (request, response) => {
     };
 
     const shuffledImages = shuffleArray(imagesWithData);
-
     return response.status(200).json({
       images: shuffledImages,
+      nextPageToken: res.nextPageToken || null,
       message: "Successfully fetched random images",
     });
   } catch (error) {
@@ -154,7 +206,7 @@ const GET_IMAGES = async (request, response) => {
   try {
     const listRef = ref(firebase_app_storage, "images");
     const { pageToken } = request.body;
-    const res = await list(listRef, { maxResults: 30, pageToken: pageToken });
+    const res = await list(listRef, { maxResults: 300, pageToken: pageToken });
 
     // Fetch download URLs and metadata for each image
     const imagesWithData = await Promise.all(
@@ -191,9 +243,46 @@ const GET_IMAGES = async (request, response) => {
   }
 };
 
+const GET_SINGLE_FILE = async (request, response) => {
+  try {
+    const { file } = request.body;
+    const storageRef = ref(firebase_app_storage, `images/${file}`);
+
+    const downloadURL = await getDownloadURL(storageRef);
+    const metadata = await getMetadata(storageRef);
+
+    const data = {
+      src: downloadURL,
+      name: file,
+      created_at: metadata.timeCreated,
+      updated_at: metadata.updated,
+      size: metadata.size,
+      caption: metadata.customMetadata?.caption || "",
+      director: metadata.customMetadata?.director || "",
+      photographer: metadata.customMetadata?.photographer || "",
+      year: metadata.customMetadata?.year || "",
+      alphaname: metadata.customMetadata?.alphaname || "",
+      contentType: metadata.contentType,
+      dimensions: metadata.customMetadata?.dimensions || "",
+    }
+
+    return response.status(200).json(
+      {
+        file: data,
+        message: 'File fetched.'
+      }
+    );
+  } catch (error) {
+    console.error('Error getting file:', error);
+    return response.status(500).json({ error: 'File getting failed', details: error.message });
+  }
+}
+
 module.exports = {
   GET_ALL_IMAGES_A_Z,
   GET_RANDOM_IMAGES,
   GET_ALL_IMAGES,
   GET_IMAGES,
+  GET_SINGLE_FILE,
+  GET_ORDERED_IMAGES,
 };
