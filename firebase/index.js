@@ -18,5 +18,5 @@ const firebase_app_storage = getStorage(firebase_app);
 
 module.exports = {
     firebase_app,
-    firebase_app_storage,
+    firebase_app_storage
 }
