@@ -20,16 +20,8 @@ const GET_ALL_IMAGES_A_Z = async (request, response) => {
 
         return {
           name: itemRef.name,
-          created_at: metadata.timeCreated,
-          updated_at: metadata.updated,
-          size: metadata.size,
-          caption: metadata.customMetadata?.caption || "",
-          director: metadata.customMetadata?.director || "",
-          photographer: metadata.customMetadata?.photographer || "",
           year: metadata.customMetadata?.year || "",
           alphaname: metadata.customMetadata?.alphaname || "",
-          contentType: metadata.contentType,
-          dimensions: metadata.customMetadata?.dimensions || "",
         };
       })
     );
