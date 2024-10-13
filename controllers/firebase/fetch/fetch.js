@@ -19,7 +19,7 @@ const GET_ALL_IMAGES_A_Z = async (request, response) => {
         const metadata = await getMetadata(itemRef);
 
         return {
-          name: itemRef.name,
+          caption: metadata.customMetadata?.caption || "",
           year: metadata.customMetadata?.year || "",
           alphaname: metadata.customMetadata?.alphaname || "",
         };
