@@ -16,7 +16,7 @@ firebase_routes.delete('/delete', DeleteImage);
 firebase_routes.post('/get-images', GET_IMAGES);
 firebase_routes.post('/get-all-images', GET_ALL_IMAGES);
 firebase_routes.post('/get-sorted-images', GET_ALL_IMAGES_A_Z);
-firebase_routes.post('/get-random-images', GET_RANDOM_IMAGES);
+firebase_routes.get('/get-random-images', GET_RANDOM_IMAGES);
 firebase_routes.post('/get-single-image', GET_SINGLE_FILE);
 firebase_routes.post('/get-ordered-images', GET_ORDERED_IMAGES);
 
