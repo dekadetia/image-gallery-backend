@@ -16,9 +16,8 @@ const GET_ALL_IMAGES_A_Z = async (request, response) => {
     const imagesWithData = await Promise.all(
       res.items.map(async (itemRef) => {
         const metadata = await getMetadata(itemRef);
-
         return {
-          name: item.name,
+          name: itemRef.name,
           caption: metadata.customMetadata?.caption || "",
           year: metadata.customMetadata?.year || "",
           alphaname: metadata.customMetadata?.alphaname || "",
