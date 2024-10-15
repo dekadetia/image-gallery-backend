@@ -33,7 +33,6 @@ const GET_ALL_IMAGES_A_Z = async (request, response) => {
 
     return response.status(200).json({
       images: imagesWithData,
-      nextPageToken: res.nextPageToken || null,
       message: "Successfully fetched all images",
     });
   } catch (error) {
