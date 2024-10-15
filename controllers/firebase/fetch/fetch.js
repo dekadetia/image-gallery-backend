@@ -10,8 +10,7 @@ const { firebase_app_storage } = require("../../../firebase/index");
 const GET_ALL_IMAGES_A_Z = async (request, response) => {
   try {
     const listRef = ref(firebase_app_storage, "images");
-    const { pageToken } = request.body;
-    const res = await list(listRef, { maxResults: 300, pageToken: pageToken });
+    const res = await listAll(listRef);
 
     const imagesWithData = await Promise.all(
       res.items.map(async (itemRef) => {
