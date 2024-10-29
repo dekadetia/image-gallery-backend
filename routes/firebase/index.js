@@ -4,7 +4,7 @@ const multer = require('multer');
 
 const { index, StoreImage } = require('../../controllers/firebase');
 const { UpdateImage } = require('../../controllers/firebase/update/update');
-const { GET_IMAGES, GET_ALL_IMAGES, GET_ALL_IMAGES_A_Z, GET_RANDOM_IMAGES, GET_SINGLE_FILE, GET_ORDERED_IMAGES } = require('../../controllers/firebase/fetch/fetch');
+const { GET_IMAGES, GET_ALL_IMAGES, GET_ALL_IMAGES_A_Z, GET_RANDOM_IMAGES, GET_SINGLE_FILE, GET_ORDERED_IMAGES, getCount } = require('../../controllers/firebase/fetch/fetch');
 const { DeleteImage } = require('../../controllers/firebase/delete/delete');
 
 const upload = multer({ storage: multer.memoryStorage() }); 
@@ -19,5 +19,6 @@ firebase_routes.get('/get-sorted-images', GET_ALL_IMAGES_A_Z);
 firebase_routes.get('/get-random-images', GET_RANDOM_IMAGES);
 firebase_routes.post('/get-single-image', GET_SINGLE_FILE);
 firebase_routes.post('/get-ordered-images', GET_ORDERED_IMAGES);
+firebase_routes.get('/get-count', getCount);
 
 module.exports = firebase_routes;

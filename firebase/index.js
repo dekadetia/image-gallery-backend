@@ -1,5 +1,6 @@
 const dotenv = require('dotenv');
 const { initializeApp } = require("firebase/app");
+const { getFirestore } = require("firebase/firestore");
 const { getStorage } = require("@firebase/storage");
 
 dotenv.config();
@@ -15,8 +16,10 @@ const firebaseConfig = {
 
 const firebase_app = initializeApp(firebaseConfig);
 const firebase_app_storage = getStorage(firebase_app);
+const firebase_app_db = getFirestore(firebase_app);
 
 module.exports = {
     firebase_app,
+    firebase_app_db,
     firebase_app_storage
 }
