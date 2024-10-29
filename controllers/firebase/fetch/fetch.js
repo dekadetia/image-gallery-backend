@@ -6,7 +6,17 @@ const {
   uploadBytesResumable,
   list,
 } = require("firebase/storage");
-const { doc, collection, setDoc, getDoc, query, orderBy, limit, getDocs, startAfter } = require("firebase/firestore");
+const {
+  doc,
+  collection,
+  setDoc,
+  getDoc,
+  query,
+  orderBy,
+  limit,
+  getDocs,
+  startAfter,
+} = require("firebase/firestore");
 const {
   firebase_app_storage,
   firebase_app_db,
@@ -29,93 +39,193 @@ const getCount = async (req, response) => {
 
 const GET_ALL_IMAGES_A_Z = async (request, response) => {
   try {
-    const listRef = ref(firebase_app_storage, "images");
-    // const listRef = ref(firebase_app_storage, "images");
-    const res = await listAll(listRef);
-
-    const imagesWithData = await Promise.all(
-      res.items.map(async (itemRef) => {
-        const metadata = await getMetadata(itemRef);
-        return {
-          name: itemRef.name,
-          caption: metadata.customMetadata?.caption || "",
-          year: metadata.customMetadata?.year || "",
-          alphaname: metadata.customMetadata?.alphaname || "",
-        };
-      })
+    const { pageSize = 300, lastVisibleDocId } = request.body; // Extract pagination params from request
+    const collectionRef = collection(firebase_app_db, "media");
+    let queryRef = query(
+      collectionRef,
+      orderBy("name", "asc"),
+      // limit(pageSize)
     );
 
-    // Sort images by `alphaname`, but handle the case where `alphaname` might be missing
-    imagesWithData.sort((a, b) => {
-      const nameA = a.alphaname ? a.alphaname.toLowerCase() : "";
-      const nameB = b.alphaname ? b.alphaname.toLowerCase() : "";
-      return nameA.localeCompare(nameB);
-    });
+    // If `lastVisibleDocId` is provided, use it to start the next query
+    if (lastVisibleDocId) {
+      const lastDocRef = doc(collectionRef, lastVisibleDocId);
+      const lastDocSnapshot = await getDoc(lastDocRef);
 
+      if (lastDocSnapshot.exists()) {
+        queryRef = query(queryRef, startAfter(lastDocSnapshot));
+      } else {
+        return response
+          .status(404)
+          .json({ error: "Last visible document not found." });
+      }
+    }
+
+    // Fetch the queried documents
+    const querySnapshot = await getDocs(queryRef);
+
+    // Map through the documents and extract data
+    const imagesWithData = querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    // Check if there are more documents available for the next page
+    const lastVisibleDoc = querySnapshot.docs[querySnapshot.docs.length - 1];
+    const nextPageToken = lastVisibleDoc ? lastVisibleDoc.id : null;
+
+    // Send response with images and the next page token
     return response.status(200).json({
       images: imagesWithData,
-      message: "Successfully fetched all images",
+      nextPageToken,
+      message: "Successfully fetched images.",
     });
   } catch (error) {
-    console.error("Error loading all images:", error);
-
-    // Return error with status code 400 and a descriptive error message
-    return response.status(400).json({
-      error: "Error fetching all images",
+    console.error("Error fetching images:", error);
+    return response.status(500).json({
+      error: "Failed to fetch images.",
       details: error.message,
     });
   }
+
+  // try {
+  //   const listRef = ref(firebase_app_storage, "images");
+  //   // const listRef = ref(firebase_app_storage, "images");
+  //   const res = await listAll(listRef);
+
+  //   const imagesWithData = await Promise.all(
+  //     res.items.map(async (itemRef) => {
+  //       const metadata = await getMetadata(itemRef);
+  //       return {
+  //         name: itemRef.name,
+  //         caption: metadata.customMetadata?.caption || "",
+  //         year: metadata.customMetadata?.year || "",
+  //         alphaname: metadata.customMetadata?.alphaname || "",
+  //       };
+  //     })
+  //   );
+
+  //   // Sort images by `alphaname`, but handle the case where `alphaname` might be missing
+  //   imagesWithData.sort((a, b) => {
+  //     const nameA = a.alphaname ? a.alphaname.toLowerCase() : "";
+  //     const nameB = b.alphaname ? b.alphaname.toLowerCase() : "";
+  //     return nameA.localeCompare(nameB);
+  //   });
+
+  //   return response.status(200).json({
+  //     images: imagesWithData,
+  //     message: "Successfully fetched all images",
+  //   });
+  // } catch (error) {
+  //   console.error("Error loading all images:", error);
+
+  //   // Return error with status code 400 and a descriptive error message
+  //   return response.status(400).json({
+  //     error: "Error fetching all images",
+  //     details: error.message,
+  //   });
+  // }
 };
 
 const GET_ORDERED_IMAGES = async (request, response) => {
   try {
-    const listRef = ref(firebase_app_storage, "images");
-    const { pageToken } = request.body;
-    const res = await list(listRef, { maxResults: 300, pageToken: pageToken });
-
-    const imagesWithData = await Promise.all(
-      res.items.map(async (itemRef) => {
-        const downloadURL = await getDownloadURL(itemRef);
-        const metadata = await getMetadata(itemRef);
-
-        return {
-          src: downloadURL,
-          name: itemRef.name,
-          created_at: metadata.timeCreated,
-          updated_at: metadata.updated,
-          size: metadata.size,
-          caption: metadata.customMetadata?.caption || "",
-          director: metadata.customMetadata?.director || "",
-          photographer: metadata.customMetadata?.photographer || "",
-          year: metadata.customMetadata?.year || "",
-          alphaname: metadata.customMetadata?.alphaname || "",
-          contentType: metadata.contentType,
-          dimensions: metadata.customMetadata?.dimensions || "",
-        };
-      })
+    const { pageSize = 300, lastVisibleDocId } = request.body; // Extract pagination params from request
+    const collectionRef = collection(firebase_app_db, "media");
+    let queryRef = query(
+      collectionRef,
+      orderBy("created_at", "desc"),
+      limit(pageSize)
     );
 
-    // Sort images by `alphaname`, but handle the case where `alphaname` might be missing
-    imagesWithData.sort((a, b) => {
-      const nameA = a.alphaname ? a.alphaname.toLowerCase() : "";
-      const nameB = b.alphaname ? b.alphaname.toLowerCase() : "";
-      return nameA.localeCompare(nameB);
-    });
+    // If `lastVisibleDocId` is provided, use it to start the next query
+    if (lastVisibleDocId) {
+      const lastDocRef = doc(collectionRef, lastVisibleDocId);
+      const lastDocSnapshot = await getDoc(lastDocRef);
 
+      if (lastDocSnapshot.exists()) {
+        queryRef = query(queryRef, startAfter(lastDocSnapshot));
+      } else {
+        return response
+          .status(404)
+          .json({ error: "Last visible document not found." });
+      }
+    }
+
+    // Fetch the queried documents
+    const querySnapshot = await getDocs(queryRef);
+
+    // Map through the documents and extract data
+    const imagesWithData = querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    // Check if there are more documents available for the next page
+    const lastVisibleDoc = querySnapshot.docs[querySnapshot.docs.length - 1];
+    const nextPageToken = lastVisibleDoc ? lastVisibleDoc.id : null;
+
+    // Send response with images and the next page token
     return response.status(200).json({
       images: imagesWithData,
-      nextPageToken: res.nextPageToken || null,
-      message: "Successfully fetched all images",
+      nextPageToken,
+      message: "Successfully fetched images.",
     });
   } catch (error) {
-    console.error("Error loading all images:", error);
-
-    // Return error with status code 400 and a descriptive error message
-    return response.status(400).json({
-      error: "Error fetching all images",
+    console.error("Error fetching images:", error);
+    return response.status(500).json({
+      error: "Failed to fetch images.",
       details: error.message,
     });
   }
+
+  // try {
+  //   const listRef = ref(firebase_app_storage, "images");
+  //   const { pageToken } = request.body;
+  //   const res = await list(listRef, { maxResults: 300, pageToken: pageToken });
+
+  //   const imagesWithData = await Promise.all(
+  //     res.items.map(async (itemRef) => {
+  //       const downloadURL = await getDownloadURL(itemRef);
+  //       const metadata = await getMetadata(itemRef);
+
+  //       return {
+  //         src: downloadURL,
+  //         name: itemRef.name,
+  //         created_at: metadata.timeCreated,
+  //         updated_at: metadata.updated,
+  //         size: metadata.size,
+  //         caption: metadata.customMetadata?.caption || "",
+  //         director: metadata.customMetadata?.director || "",
+  //         photographer: metadata.customMetadata?.photographer || "",
+  //         year: metadata.customMetadata?.year || "",
+  //         alphaname: metadata.customMetadata?.alphaname || "",
+  //         contentType: metadata.contentType,
+  //         dimensions: metadata.customMetadata?.dimensions || "",
+  //       };
+  //     })
+  //   );
+
+  //   // Sort images by `alphaname`, but handle the case where `alphaname` might be missing
+  //   imagesWithData.sort((a, b) => {
+  //     const nameA = a.alphaname ? a.alphaname.toLowerCase() : "";
+  //     const nameB = b.alphaname ? b.alphaname.toLowerCase() : "";
+  //     return nameA.localeCompare(nameB);
+  //   });
+
+  //   return response.status(200).json({
+  //     images: imagesWithData,
+  //     nextPageToken: res.nextPageToken || null,
+  //     message: "Successfully fetched all images",
+  //   });
+  // } catch (error) {
+  //   console.error("Error loading all images:", error);
+
+  //   // Return error with status code 400 and a descriptive error message
+  //   return response.status(400).json({
+  //     error: "Error fetching all images",
+  //     details: error.message,
+  //   });
+  // }
 };
 
 const GET_RANDOM_IMAGES = async (request, response) => {
@@ -220,94 +330,94 @@ const GET_ALL_IMAGES = async (request, response) => {
 };
 
 const GET_IMAGES = async (request, response) => {
+  // try {
   try {
-    try {
-      const { pageSize = 300, lastVisibleDocId } = request.body; // Extract pagination params from request
-      const collectionRef = collection(firebase_app_db, "media");
-      let queryRef = query(
-        collectionRef,
-        orderBy("created_at", "desc"),
-        limit(pageSize)
-      );
+    const { pageSize = 300, lastVisibleDocId } = request.body; // Extract pagination params from request
+    const collectionRef = collection(firebase_app_db, "media");
+    let queryRef = query(
+      collectionRef,
+      // orderBy("created_at", "desc"),
+      limit(pageSize)
+    );
 
-      // If `lastVisibleDocId` is provided, use it to start the next query
-      if (lastVisibleDocId) {
-        const lastDocRef = doc(collectionRef, lastVisibleDocId);
-        const lastDocSnapshot = await getDoc(lastDocRef);
+    // If `lastVisibleDocId` is provided, use it to start the next query
+    if (lastVisibleDocId) {
+      const lastDocRef = doc(collectionRef, lastVisibleDocId);
+      const lastDocSnapshot = await getDoc(lastDocRef);
 
-        if (lastDocSnapshot.exists()) {
-          queryRef = query(queryRef, startAfter(lastDocSnapshot));
-        } else {
-          return response
-            .status(404)
-            .json({ error: "Last visible document not found." });
-        }
+      if (lastDocSnapshot.exists()) {
+        queryRef = query(queryRef, startAfter(lastDocSnapshot));
+      } else {
+        return response
+          .status(404)
+          .json({ error: "Last visible document not found." });
       }
-
-      // Fetch the queried documents
-      const querySnapshot = await getDocs(queryRef);
-
-      // Map through the documents and extract data
-      const imagesWithData = querySnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-
-      // Check if there are more documents available for the next page
-      const lastVisibleDoc = querySnapshot.docs[querySnapshot.docs.length - 1];
-      const nextPageToken = lastVisibleDoc ? lastVisibleDoc.id : null;
-
-      // Send response with images and the next page token
-      return response.status(200).json({
-        images: imagesWithData,
-        nextPageToken,
-        message: "Successfully fetched images.",
-      });
-    } catch (error) {
-      console.error("Error fetching images:", error);
-      return response.status(500).json({
-        error: "Failed to fetch images.",
-        details: error.message,
-      });
     }
 
-    // const listRef = ref(firebase_app_storage, "thumbnails");
-    // const { pageToken } = request.body;
-    // const res = await list(listRef, { maxResults: 300, pageToken: pageToken });
+    // Fetch the queried documents
+    const querySnapshot = await getDocs(queryRef);
 
-    // // Fetch download URLs and metadata for each image
-    // const imagesWithData = await Promise.all(
-    //   res.items.map(async (itemRef) => {
-    //     const downloadURL = await getDownloadURL(itemRef);
-    //     const metadata = await getMetadata(itemRef);
-    //     return {
-    //       src: downloadURL,
-    //       name: itemRef.name,
-    //       created_at: metadata.timeCreated,
-    //       updated_at: metadata.updated,
-    //       size: metadata.size,
-    //       caption: metadata.customMetadata?.caption || "",
-    //       director: metadata.customMetadata?.director || "",
-    //       photographer: metadata.customMetadata?.photographer || "",
-    //       year: metadata.customMetadata?.year || "",
-    //       alphaname: metadata.customMetadata?.alphaname || "",
-    //       contentType: metadata.contentType,
-    //       dimensions: metadata.customMetadata?.dimensions || "",
-    //     };
-    //   })
-    // );
+    // Map through the documents and extract data
+    const imagesWithData = querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
 
-    // // Return the response with status 200
-    // return response.status(200).json({
-    //   images: imagesWithData,
-    //   nextPageToken: res.nextPageToken || null,
-    //   message: "Successfully fetched",
-    // });
+    // Check if there are more documents available for the next page
+    const lastVisibleDoc = querySnapshot.docs[querySnapshot.docs.length - 1];
+    const nextPageToken = lastVisibleDoc ? lastVisibleDoc.id : null;
+
+    // Send response with images and the next page token
+    return response.status(200).json({
+      images: imagesWithData,
+      nextPageToken,
+      message: "Successfully fetched images.",
+    });
   } catch (error) {
-    console.error("Error loading images:", error);
-    // Return the error response with status 400
-    return response.status(400).json({ error: "Error fetching images" });
+    console.error("Error fetching images:", error);
+    return response.status(500).json({
+      error: "Failed to fetch images.",
+      details: error.message,
+    });
   }
+
+  // const listRef = ref(firebase_app_storage, "thumbnails");
+  // const { pageToken } = request.body;
+  // const res = await list(listRef, { maxResults: 300, pageToken: pageToken });
+
+  // // Fetch download URLs and metadata for each image
+  // const imagesWithData = await Promise.all(
+  //   res.items.map(async (itemRef) => {
+  //     const downloadURL = await getDownloadURL(itemRef);
+  //     const metadata = await getMetadata(itemRef);
+  //     return {
+  //       src: downloadURL,
+  //       name: itemRef.name,
+  //       created_at: metadata.timeCreated,
+  //       updated_at: metadata.updated,
+  //       size: metadata.size,
+  //       caption: metadata.customMetadata?.caption || "",
+  //       director: metadata.customMetadata?.director || "",
+  //       photographer: metadata.customMetadata?.photographer || "",
+  //       year: metadata.customMetadata?.year || "",
+  //       alphaname: metadata.customMetadata?.alphaname || "",
+  //       contentType: metadata.contentType,
+  //       dimensions: metadata.customMetadata?.dimensions || "",
+  //     };
+  //   })
+  // );
+
+  // // Return the response with status 200
+  // return response.status(200).json({
+  //   images: imagesWithData,
+  //   nextPageToken: res.nextPageToken || null,
+  //   message: "Successfully fetched",
+  // });
+  // } catch (error) {
+  //   console.error("Error loading images:", error);
+  //   // Return the error response with status 400
+  //   return response.status(400).json({ error: "Error fetching images" });
+  // }
 };
 
 const GET_SINGLE_FILE = async (request, response) => {
