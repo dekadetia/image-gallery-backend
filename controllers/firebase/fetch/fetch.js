@@ -426,7 +426,7 @@ const GET_ALL_IMAGES = async (request, response) => {
 const GET_IMAGES = async (request, response) => {
   // try {
   try {
-    const { pageSize = 300, lastVisibleDocId } = request.body; // Extract pagination params from request
+    const { pageSize = 99, lastVisibleDocId } = request.body; // Extract pagination params from request
     const collectionRef = collection(firebase_app_db, "media");
     let queryRef = query(collectionRef, limit(pageSize));
 
