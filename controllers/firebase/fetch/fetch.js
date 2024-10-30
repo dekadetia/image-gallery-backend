@@ -16,6 +16,8 @@ const {
   limit,
   getDocs,
   startAfter,
+  startAt,
+  where,
 } = require("firebase/firestore");
 const {
   firebase_app_storage,
@@ -39,12 +41,11 @@ const getCount = async (req, response) => {
 
 const GET_ALL_IMAGES_A_Z = async (request, response) => {
   try {
-    const { pageSize = 300, lastVisibleDocId } = request.body; // Extract pagination params from request
+    const { lastVisibleDocId } = request.body; // Extract pagination params from request
     const collectionRef = collection(firebase_app_db, "media");
     let queryRef = query(
       collectionRef,
-      orderBy("name", "asc"),
-      // limit(pageSize)
+      orderBy("alphaname", "asc"),
     );
 
     // If `lastVisibleDocId` is provided, use it to start the next query
@@ -53,7 +54,7 @@ const GET_ALL_IMAGES_A_Z = async (request, response) => {
       const lastDocSnapshot = await getDoc(lastDocRef);
 
       if (lastDocSnapshot.exists()) {
-        queryRef = query(queryRef, startAfter(lastDocSnapshot));
+        queryRef = query(queryRef, startAfter(lastDocSnapshot)); // Use startAfter for pagination
       } else {
         return response
           .status(404)
@@ -133,7 +134,7 @@ const GET_ORDERED_IMAGES = async (request, response) => {
     const collectionRef = collection(firebase_app_db, "media");
     let queryRef = query(
       collectionRef,
-      orderBy("created_at", "desc"),
+      orderBy("alphaname", "asc"),
       limit(pageSize)
     );
 
@@ -230,103 +231,196 @@ const GET_ORDERED_IMAGES = async (request, response) => {
 
 const GET_RANDOM_IMAGES = async (request, response) => {
   try {
-    // const listRef = ref(firebase_app_storage, "images");
-    const listRef = ref(firebase_app_storage, "thumbnails");
-    const res = await listAll(listRef);
+    const { pageSize = 300 } = request.body;
+    const collectionRef = collection(firebase_app_db, "media");
 
-    const imagesWithData = await Promise.all(
-      res.items.map(async (itemRef) => itemRef)
-    );
+    // Step 1: Get all document IDs from the collection
+    const allDocsSnapshot = await getDocs(collectionRef);
+    const allDocIds = allDocsSnapshot.docs.map((doc) => doc.id);
 
-    const shuffleArray = (array) => {
-      for (let i = array.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [array[i], array[j]] = [array[j], array[i]];
+    if (allDocIds.length === 0) {
+      return response.status(404).json({ error: "No images found." });
+    }
+
+    // Step 2: Select random IDs in memory
+    const randomDocIds = [];
+    while (randomDocIds.length < Math.min(pageSize, allDocIds.length)) {
+      const randomIndex = Math.floor(Math.random() * allDocIds.length);
+      const randomId = allDocIds[randomIndex];
+      if (!randomDocIds.includes(randomId)) {
+        randomDocIds.push(randomId);
       }
-      return array;
-    };
+    }
 
-    const shuffledImages = shuffleArray(imagesWithData).slice(0, 300);
+    // Step 3: Fetch the randomly selected documents
+    const promises = randomDocIds.map((id) => getDoc(doc(collectionRef, id)));
+    const docsSnapshots = await Promise.all(promises);
 
-    const finalArray = await Promise.all(
-      shuffledImages.map(async (item) => {
-        const downloadURL = await getDownloadURL(item);
-        const metadata = await getMetadata(item);
-
-        return {
-          src: downloadURL,
-          name: item.name,
-          created_at: metadata.timeCreated,
-          updated_at: metadata.updated,
-          size: metadata.size,
-          caption: metadata.customMetadata?.caption || "",
-          director: metadata.customMetadata?.director || "",
-          photographer: metadata.customMetadata?.photographer || "",
-          year: metadata.customMetadata?.year || "",
-          alphaname: metadata.customMetadata?.alphaname || "",
-          contentType: metadata.contentType,
-          dimensions: metadata.customMetadata?.dimensions || "",
-        };
-      })
-    );
+    const images = docsSnapshots.map((docSnap) => ({
+      id: docSnap.id,
+      ...docSnap.data(),
+    }));
 
     return response.status(200).json({
-      images: finalArray,
-      message: "Successfully fetched random images",
+      images,
+      message: "Successfully fetched random images.",
     });
   } catch (error) {
-    console.error("Error loading all images:", error);
-    return response.status(400).json({
-      error: "Error fetching images",
+    console.error("Error fetching random images:", error);
+    return response.status(500).json({
+      error: "Failed to fetch random images.",
       details: error.message,
     });
   }
+
+  // try {
+  //   // const listRef = ref(firebase_app_storage, "images");
+  //   const listRef = ref(firebase_app_storage, "thumbnails");
+  //   const res = await listAll(listRef);
+
+  //   const imagesWithData = await Promise.all(
+  //     res.items.map(async (itemRef) => itemRef)
+  //   );
+
+  //   const shuffleArray = (array) => {
+  //     for (let i = array.length - 1; i > 0; i--) {
+  //       const j = Math.floor(Math.random() * (i + 1));
+  //       [array[i], array[j]] = [array[j], array[i]];
+  //     }
+  //     return array;
+  //   };
+
+  //   const shuffledImages = shuffleArray(imagesWithData).slice(0, 300);
+
+  //   const finalArray = await Promise.all(
+  //     shuffledImages.map(async (item) => {
+  //       const downloadURL = await getDownloadURL(item);
+  //       const metadata = await getMetadata(item);
+
+  //       return {
+  //         src: downloadURL,
+  //         name: item.name,
+  //         created_at: metadata.timeCreated,
+  //         updated_at: metadata.updated,
+  //         size: metadata.size,
+  //         caption: metadata.customMetadata?.caption || "",
+  //         director: metadata.customMetadata?.director || "",
+  //         photographer: metadata.customMetadata?.photographer || "",
+  //         year: metadata.customMetadata?.year || "",
+  //         alphaname: metadata.customMetadata?.alphaname || "",
+  //         contentType: metadata.contentType,
+  //         dimensions: metadata.customMetadata?.dimensions || "",
+  //       };
+  //     })
+  //   );
+
+  //   return response.status(200).json({
+  //     images: finalArray,
+  //     message: "Successfully fetched random images",
+  //   });
+  // } catch (error) {
+  //   console.error("Error loading all images:", error);
+  //   return response.status(400).json({
+  //     error: "Error fetching images",
+  //     details: error.message,
+  //   });
+  // }
 };
 
 const GET_ALL_IMAGES = async (request, response) => {
+
   try {
-    const { pageToken } = request.body;
-
-    const listRef = ref(firebase_app_storage, "images");
-    const res = await list(listRef, { maxResults: 300, pageToken: pageToken });
-
-    const imagesWithData = await Promise.all(
-      res.items.map(async (itemRef) => {
-        try {
-          const metadata = await getMetadata(itemRef);
-
-          const data = {
-            name: itemRef.name,
-            created_at: metadata.timeCreated,
-            updated_at: metadata.updated,
-            size: metadata.size,
-            ...metadata.customMetadata,
-            contentType: metadata.contentType,
-          };
-
-          return data;
-        } catch (error) {
-          console.error(`Error processing image: ${itemRef.name}`, error);
-          return null;
-        }
-      })
+    const { lastVisibleDocId } = request.body; // Extract pagination params from request
+    const collectionRef = collection(firebase_app_db, "media");
+    let queryRef = query(
+      collectionRef,
+      orderBy("created_at", "desc"),
     );
 
-    const sortedImages = imagesWithData.sort(
-      (a, b) => new Date(b.created_at) - new Date(a.created_at)
-    );
+    // If `lastVisibleDocId` is provided, use it to start the next query
+    if (lastVisibleDocId) {
+      const lastDocRef = doc(collectionRef, lastVisibleDocId);
+      const lastDocSnapshot = await getDoc(lastDocRef);
 
+      if (lastDocSnapshot.exists()) {
+        queryRef = query(queryRef, startAfter(lastDocSnapshot)); // Use startAfter for pagination
+      } else {
+        return response
+          .status(404)
+          .json({ error: "Last visible document not found." });
+      }
+    }
+
+    // Fetch the queried documents
+    const querySnapshot = await getDocs(queryRef);
+
+    // Map through the documents and extract data
+    const imagesWithData = querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    // Check if there are more documents available for the next page
+    const lastVisibleDoc = querySnapshot.docs[querySnapshot.docs.length - 1];
+    const nextPageToken = lastVisibleDoc ? lastVisibleDoc.id : null;
+
+    // Send response with images and the next page token
     return response.status(200).json({
-      images: sortedImages,
-      nextPageToken: res.nextPageToken || null,
-      message: "Successfully fetched all images",
+      images: imagesWithData,
+      nextPageToken,
+      message: "Successfully fetched images.",
     });
   } catch (error) {
-    console.error("Error loading all images:", error);
-    return response.status(400).json({
-      error: "Error fetching all images",
+    console.error("Error fetching images:", error);
+    return response.status(500).json({
+      error: "Failed to fetch images.",
+      details: error.message,
     });
   }
+
+  // try {
+  //   const { pageToken } = request.body;
+
+  //   const listRef = ref(firebase_app_storage, "images");
+  //   const res = await list(listRef, { maxResults: 300, pageToken: pageToken });
+
+  //   const imagesWithData = await Promise.all(
+  //     res.items.map(async (itemRef) => {
+  //       try {
+  //         const metadata = await getMetadata(itemRef);
+
+  //         const data = {
+  //           name: itemRef.name,
+  //           created_at: metadata.timeCreated,
+  //           updated_at: metadata.updated,
+  //           size: metadata.size,
+  //           ...metadata.customMetadata,
+  //           contentType: metadata.contentType,
+  //         };
+
+  //         return data;
+  //       } catch (error) {
+  //         console.error(`Error processing image: ${itemRef.name}`, error);
+  //         return null;
+  //       }
+  //     })
+  //   );
+
+  //   const sortedImages = imagesWithData.sort(
+  //     (a, b) => new Date(b.created_at) - new Date(a.created_at)
+  //   );
+
+  //   return response.status(200).json({
+  //     images: sortedImages,
+  //     nextPageToken: res.nextPageToken || null,
+  //     message: "Successfully fetched all images",
+  //   });
+  // } catch (error) {
+  //   console.error("Error loading all images:", error);
+  //   return response.status(400).json({
+  //     error: "Error fetching all images",
+  //   });
+  // }
 };
 
 const GET_IMAGES = async (request, response) => {
@@ -334,11 +428,7 @@ const GET_IMAGES = async (request, response) => {
   try {
     const { pageSize = 300, lastVisibleDocId } = request.body; // Extract pagination params from request
     const collectionRef = collection(firebase_app_db, "media");
-    let queryRef = query(
-      collectionRef,
-      // orderBy("created_at", "desc"),
-      limit(pageSize)
-    );
+    let queryRef = query(collectionRef, limit(pageSize));
 
     // If `lastVisibleDocId` is provided, use it to start the next query
     if (lastVisibleDocId) {
