@@ -19,79 +19,68 @@ const StoreImage = async (request, response) => {
   try {
     const { caption, director, photographer, year, alphaname, dimensions } =
       request.body;
-    const uploadPromises = [];
 
-    request.files.forEach((file) => {
-      uploadPromises.push(
-        (async () => {
-          try {
-            const fileName = file.originalname;
-            const storageRef = ref(firebase_app_storage, `images/${fileName}`);
-            const thumbnailRef = ref(
-              firebase_app_storage,
-              `thumbnails/${fileName}`
-            );
+    const uploadPromises = request.files.map(async (file) => {
+      try {
+        const fileName = file.originalname;
+        const storageRef = ref(firebase_app_storage, `images/${fileName}`);
+        const thumbnailRef = ref(
+          firebase_app_storage,
+          `thumbnails/${fileName}`
+        );
 
-            const metadata_data = {
-              customMetadata: {
-                caption,
-                director,
-                photographer,
-                year,
-                alphaname,
-                dimensions,
-              },
-            };
+        const metadata = {
+          customMetadata: {
+            caption,
+            director,
+            photographer,
+            year,
+            alphaname,
+            dimensions,
+          },
+        };
 
-            // Upload original file
-            await uploadBytesResumable(storageRef, file.buffer, metadata_data);
+        // Upload the original image
+        await uploadBytesResumable(storageRef, file.buffer, metadata);
 
-            // Create a thumbnail using buffers
-            const thumbnailBuffer = await sharp(file.buffer, {
-              animated: true,
-              pages: -1,
-            })
-              .resize({ width: 200, height: 200, fit: sharp.fit.inside })
-              .toBuffer();
+        // Create a thumbnail (handling animated images if applicable)
+        const thumbnailBuffer = await sharp(file.buffer)
+          .resize({ width: 200, height: 200, fit: sharp.fit.inside })
+          .toBuffer();
 
-            // Upload thumbnail buffer
-            await uploadBytesResumable(
-              thumbnailRef,
-              thumbnailBuffer,
-              metadata_data
-            );
+        // Upload the thumbnail
+        await uploadBytesResumable(thumbnailRef, thumbnailBuffer, metadata);
 
-            // Retrieve URLs and metadata
-            const [downloadURL, thumbDownloadURL, metadata] = await Promise.all(
-              [
-                getDownloadURL(storageRef),
-                getDownloadURL(thumbnailRef),
-                getMetadata(storageRef),
-              ]
-            );
+        // Retrieve URLs and metadata in parallel
+        const [downloadURL, thumbDownloadURL, metadataSnapshot] =
+          await Promise.all([
+            getDownloadURL(storageRef),
+            getDownloadURL(thumbnailRef),
+            getMetadata(storageRef),
+          ]);
 
-            // Construct Firestore data
-            const data = {
-              src: downloadURL,
-              thumbnail: thumbDownloadURL,
-              name: fileName,
-              created_at: metadata.timeCreated,
-              updated_at: metadata.updated,
-              size: metadata.size,
-              ...metadata.customMetadata,
-              contentType: metadata.contentType,
-            };
+        // Construct Firestore document data
+        const data = {
+          src: downloadURL,
+          thumbnail: thumbDownloadURL,
+          name: fileName,
+          created_at: metadataSnapshot.timeCreated,
+          updated_at: metadataSnapshot.updated,
+          size: metadataSnapshot.size,
+          contentType: metadataSnapshot.contentType,
+          ...metadata.customMetadata,
+        };
 
-            // Save metadata to Firestore
-            const docRef = doc(collection(firebase_app_db, "media"), fileName);
-            await setDoc(docRef, data);
-          } catch (error) {
-            console.error("Error uploading file:", file.originalname, error);
-          }
-        })()
-      );
+        // Save the document to Firestore
+        const docRef = doc(collection(firebase_app_db, "media"), fileName);
+        await setDoc(docRef, data);
+      } catch (error) {
+        console.error(`Error uploading file ${file.originalname}:`, error);
+        throw new Error(`Upload failed for ${file.originalname}`);
+      }
     });
 
+    // Wait for all uploads to complete
     await Promise.all(uploadPromises);
 
     return response
