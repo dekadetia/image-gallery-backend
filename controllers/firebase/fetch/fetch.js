@@ -130,12 +130,12 @@ const GET_ALL_IMAGES_A_Z = async (request, response) => {
 
 const GET_ORDERED_IMAGES = async (request, response) => {
   try {
-    const { pageSize = 99, lastVisibleDocId } = request.body; // Extract pagination params from request
+    const { lastVisibleDocId, order_by_key, order_by_value, size_limit } = request.body; // Extract pagination params from request
     const collectionRef = collection(firebase_app_db, "media");
     let queryRef = query(
       collectionRef,
-      orderBy("alphaname", "asc"),
-      limit(pageSize)
+      orderBy(order_by_key, order_by_value),
+      limit(size_limit)
     );
 
     // If `lastVisibleDocId` is provided, use it to start the next query
