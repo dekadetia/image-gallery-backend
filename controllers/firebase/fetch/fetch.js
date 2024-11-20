@@ -243,7 +243,7 @@ const GET_ORDERED_IMAGES = async (request, response) => {
 
 const GET_RANDOM_IMAGES = async (request, response) => {
   try {
-    const { pageSize = 300 } = request.body;
+    const { pageSize = 99 } = request.body;
     const collectionRef = collection(firebase_app_db, "media");
 
     // Step 1: Get all document IDs from the collection
